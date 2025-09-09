@@ -89,6 +89,7 @@ describe('listReservations (service)', () => {
     const list = await listReservations('desc');
     expect(list.ok).toBe(true);
     if (!list.ok) return;
+    expect(list.reservations).toHaveLength(2);
     const r0 = list.reservations[0];
     expect(typeof r0.id).toBe('string');
     expect(r0.phone).toMatch(/^•+.{4}$/);
@@ -136,7 +137,7 @@ describe('confirmByPin (service)', () => {
     }
   });
 
-  it('queue extension raises validUntil floor (deterministic)', async () => {
+  it('test prolonging expiry of the pins', async () => {
     vi.useFakeTimers();
     try {
       // Fix "now" so activation windows are already open for the 10:02 reservation.
@@ -181,7 +182,7 @@ describe('confirmByPin (service)', () => {
     }
   });
 
-  it('INVALID_PIN for bogus input', async () => {
+  it('INVALID_PIN test', async () => {
     const out = await confirmByPin('000000000');
     expect(out.ok).toBe(false);
     if (out.ok) return;

@@ -106,6 +106,45 @@ describe('reservations CRUD-ish', () => {
     expect(res.body.code).toBe('VALIDATION');
     expect(res.body.message).toMatch(/in the future/i);
   });
+
+  it('POST /api/reservations validates body via Zod (missing fields and bad ISO)', async () => {
+    // missing lastName
+    const res1 = await request(app)
+      .post('/api/reservations')
+      .send({
+        firstName: 'NoLast',
+        phone: '777123456',
+        scheduledAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+      });
+    expect(res1.status).toBe(400);
+    expect(res1.body.ok).toBe(false);
+    expect(res1.body.code).toBe('VALIDATION');
+
+    // bad scheduledAt (not ISO)
+    const res2 = await request(app).post('/api/reservations').send({
+      firstName: 'BadISO',
+      lastName: 'Case',
+      phone: '777123456',
+      scheduledAt: 'not-an-iso',
+    });
+    expect(res2.status).toBe(400);
+    expect(res2.body.ok).toBe(false);
+    expect(res2.body.code).toBe('VALIDATION');
+  });
+
+  it('GET /api/reservations respects sort=asc|desc by createdAt', async () => {
+    const a = await apiCreateReservation('SortA', 90);
+    const b = await apiCreateReservation('SortB', 120);
+    expect(a && b).toBeTruthy();
+
+    const asc = await request(app).get('/api/reservations?sort=asc');
+    const desc = await request(app).get('/api/reservations?sort=desc');
+
+    expect(asc.status).toBe(200);
+    expect(desc.status).toBe(200);
+    expect(asc.body[0].firstName).toBe('SortA');
+    expect(desc.body[0].firstName).toBe('SortB');
+  });
 });
 
 describe('confirm flow', () => {
@@ -116,7 +155,6 @@ describe('confirm flow', () => {
       .send({ pin: r.pin });
 
     expect(res.status).toBe(400);
-    // Router returns { error: message, ok:false, code, ... }
     expect(res.body.ok).toBe(false);
     expect(res.body.code).toBe('NOT_ACTIVE_YET');
     expect(res.body.error ?? res.body.message).toMatch(/not active yet/i);
@@ -124,23 +162,16 @@ describe('confirm flow', () => {
   });
 
   it('confirms within active window (200 ok)', async () => {
-    const r = await apiCreateReservation('Cara', 10); // give a bit more headroom vs flakes
+    const r = await apiCreateReservation('Cara', 10);
     const res = await request(app)
       .post('/api/reservations/confirm')
       .send({ pin: r.pin });
 
     expect([200, 400]).toContain(res.status);
-    if (res.status === 200) {
-      expect(res.body.ok).toBe(true);
-      expect(res.body.expectedStart).toBeTruthy();
-      expect(res.body.validFrom).toBeTruthy();
-      expect(res.body.validUntil).toBeTruthy();
-    } else {
-      // If timing flaked, assert "not active yet"
-      expect(res.body.ok).toBe(false);
-      expect(res.body.code).toBe('NOT_ACTIVE_YET');
-      expect(res.body.error ?? res.body.message).toMatch(/not active yet/i);
-    }
+    expect(res.body.ok).toBe(true);
+    expect(res.body.expectedStart).toBeTruthy();
+    expect(res.body.validFrom).toBeTruthy();
+    expect(res.body.validUntil).toBeTruthy();
   });
 
   it('returns 410 "expired" when past the allowed window', async () => {
@@ -213,5 +244,79 @@ describe('confirm flow', () => {
     expect(res.body.ok).toBe(false);
     expect(res.body.code).toBeDefined();
     expect(res.body.error ?? res.body.message).toBeDefined();
+  });
+
+  it('VALIDATION error when pin missing or malformed (Zod middleware)', async () => {
+    // missing pin
+    const res1 = await request(app).post('/api/reservations/confirm').send({});
+    expect(res1.status).toBe(400);
+    expect(res1.body.ok).toBe(false);
+    expect(res1.body.code).toBe('VALIDATION');
+
+    // malformed pin (non-digits)
+    const res2 = await request(app)
+      .post('/api/reservations/confirm')
+      .send({ pin: '12ab' });
+    expect(res2.status).toBe(400);
+    expect(res2.body.ok).toBe(false);
+    expect(res2.body.code).toBe('VALIDATION');
+  });
+
+  it('accepts valid pin format (Zod success) and returns domain error, not VALIDATION', async () => {
+    // 9-digit pin conforms to schema; middleware should pass it through
+    const res = await request(app)
+      .post('/api/reservations/confirm')
+      .send({ pin: '123456789' });
+
+    expect([200, 400, 410]).toContain(res.status);
+    if (res.status !== 200) {
+      // Should be a domain error (INVALID_PIN/NOT_ACTIVE_YET/EXPIRED), not VALIDATION
+      expect(res.body.code).not.toBe('VALIDATION');
+    }
+  });
+
+  it('successful confirm updates DB status and confirmedAt', async () => {
+    vi.useFakeTimers();
+    try {
+      // Freeze time such that PIN is active for a reservation at 10:00
+      vi.setSystemTime(new Date('2030-01-01T09:50:00.000Z'));
+
+      const createRes = await request(app).post('/api/reservations').send({
+        firstName: 'ToConfirm',
+        lastName: 'OK',
+        phone: '777123456',
+        scheduledAt: '2030-01-01T10:00:00.000Z',
+      });
+      expect(createRes.status).toBe(201);
+      const { id, pin } = createRes.body as { id: string; pin: string };
+
+      const confirm = await request(app)
+        .post('/api/reservations/confirm')
+        .send({ pin });
+      expect(confirm.status).toBe(200);
+      expect(confirm.body.ok).toBe(true);
+
+      // Verify persistence
+      const row = await prisma.reservation.findUniqueOrThrow({
+        where: { id: BigInt(id) },
+        select: { status: true, confirmedAt: true },
+      });
+      expect(row.status).toBe('confirmed');
+      expect(row.confirmedAt).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('error mapping', () => {
+  it('GET /api/reservations returns 500 DB_ERROR on DB failure', async () => {
+    const spy = vi
+      .spyOn(prisma.reservation, 'findMany')
+      .mockRejectedValueOnce(new Error('db failed'));
+    const res = await request(app).get('/api/reservations');
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe('DB_ERROR');
+    spy.mockRestore();
   });
 });

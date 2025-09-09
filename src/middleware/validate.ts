@@ -9,6 +9,7 @@ export function validateBody(schema: AnyZodObject) {
       const message = result.error.issues
         .map((i) => `${i.path.join('.') || 'body'}: ${i.message}`)
         .join('; ');
+
       return res.status(400).json({
         ok: false,
         code: ReservationErrorCode.VALIDATION,
