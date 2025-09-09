@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { luhnDigit, getPin, hashPin, generatePin } from '../src/core/pin'; // <- fix path if needed
+import { luhnDigit, hashPin, generatePin, createPin } from '../src/core/pin'; // <- fix path if needed
 
 describe('luhnDigit', () => {
   it('returns a single digit string 0-9', () => {
@@ -29,30 +29,30 @@ describe('luhnDigit', () => {
   });
 });
 
-describe('getPin', () => {
+describe('createPin', () => {
   const secret = 'unit-test-secret';
   const when = new Date('2030-01-01T10:00:00.000Z');
 
   it('is deterministic for same inputs', () => {
-    const p1 = getPin(1n, when, secret);
-    const p2 = getPin(1n, when, secret);
+    const p1 = createPin(1n, when, secret);
+    const p2 = createPin(1n, when, secret);
     expect(p1).toBe(p2);
   });
 
   it('changes when id changes', () => {
-    const p1 = getPin(1n, when, secret);
-    const p2 = getPin(2n, when, secret);
+    const p1 = createPin(1n, when, secret);
+    const p2 = createPin(2n, when, secret);
     expect(p1).not.toBe(p2);
   });
 
   it('changes when date changes', () => {
-    const p1 = getPin(1n, when, secret);
-    const p2 = getPin(1n, new Date('2030-01-01T10:05:00.000Z'), secret);
+    const p1 = createPin(1n, when, secret);
+    const p2 = createPin(1n, new Date('2030-01-01T10:05:00.000Z'), secret);
     expect(p1).not.toBe(p2);
   });
 
   it('has 9 digits and last digit equals Luhn of first 8', () => {
-    const pin = getPin(42n, when, secret);
+    const pin = createPin(42n, when, secret);
     expect(pin).toMatch(/^\d{9}$/);
     const base8 = pin.slice(0, 8);
     const check = pin.slice(8);

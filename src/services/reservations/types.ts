@@ -14,7 +14,21 @@ export enum ReservationStatus {
   CONFIRMED = 'confirmed',
 }
 
-export type ListOk = { ok: true; reservations: Reservation[] };
+export type PublicReservationRow = Pick<
+  Reservation,
+  | 'firstName'
+  | 'lastName'
+  | 'phone'
+  | 'scheduledAt'
+  | 'status'
+  | 'confirmedAt'
+  | 'pinLast4'
+  | 'createdAt'
+> & {
+  id: string;
+};
+
+export type ListOk = { ok: true; reservations: PublicReservationRow[] };
 export type ListErr = {
   ok: false;
   code: ReservationErrorCode.DB_ERROR;
