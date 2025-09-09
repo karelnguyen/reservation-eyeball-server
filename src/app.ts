@@ -10,10 +10,27 @@ export function createApp() {
   app.set('trust proxy', 1); // so req.ip is correct behind proxies
   app.use(helmet()); // for headers
   app.use(express.json({ limit: '10kb' }));
+  // CORS: support multiple origins via comma-separated env and optional credentials
+  const originEnv = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+  const origins = originEnv
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowCredentials =
+    process.env.CORS_CREDENTIALS === '1' ||
+    process.env.CORS_CREDENTIALS === 'true';
+
   app.use(
     cors({
-      origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
-      credentials: false,
+      origin: (origin, cb) => {
+        // allow non-browser requests (no Origin) or allowed origins
+        if (!origin) return cb(null, true);
+        if (origins.includes(origin)) return cb(null, true);
+        return cb(new Error(`CORS: origin ${origin} not allowed`));
+      },
+      credentials: allowCredentials,
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
     })
   );
   app.use(globalLimiter);

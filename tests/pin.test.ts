@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { luhnDigit, getPin, hashPin, generateHashedPin } from '../src/core/pin'; // <- fix path if needed
+import { luhnDigit, getPin, hashPin, generatePin } from '../src/core/pin'; // <- fix path if needed
 
 describe('luhnDigit', () => {
   it('returns a single digit string 0-9', () => {
@@ -76,14 +76,14 @@ describe('hashPin', () => {
   });
 });
 
-describe('generateHashedPin', () => {
+describe('generatePin', () => {
   const realRandom = Math.random;
   const OLD_SECRET = process.env.PIN_SECRET;
 
   beforeAll(() => {
     // Fix randomness and set a test secret so the test is stable
     vi.stubGlobal('Math', { ...Math, random: () => 0.123456 }); // deterministic salt
-    process.env.PIN_SECRET = 'test-secret-for-generateHashedPin';
+    process.env.PIN_SECRET = 'test-secret-for-generatePin';
   });
 
   afterAll(() => {
@@ -96,7 +96,7 @@ describe('generateHashedPin', () => {
 
   it('returns a 9-digit pin, an 8-char salt, and a sha256 hash', () => {
     const when = new Date('2030-01-01T10:00:00.000Z');
-    const { pin, salt, pinHash } = generateHashedPin(99n, when);
+    const { pin, salt, pinHash } = generatePin(99n, when);
 
     expect(pin).toMatch(/^\d{9}$/);
     expect(salt).toHaveLength(8); // from .slice(2, 10)
@@ -110,20 +110,12 @@ describe('generateHashedPin', () => {
     const when = new Date('2030-01-01T10:00:00.000Z');
 
     // First run with stubbed randomness
-    const {
-      pin: pin1,
-      salt: salt1,
-      pinHash: hash1,
-    } = generateHashedPin(100n, when);
+    const { pin: pin1, salt: salt1, pinHash: hash1 } = generatePin(100n, when);
 
     // Temporarily change randomness
     // @ts-ignore
     global.Math.random = () => 0.987654;
-    const {
-      pin: pin2,
-      salt: salt2,
-      pinHash: hash2,
-    } = generateHashedPin(100n, when);
+    const { pin: pin2, salt: salt2, pinHash: hash2 } = generatePin(100n, when);
 
     expect(pin1).toBe(pin2); // same PIN (deterministic by id+time+secret)
     expect(salt1).not.toBe(salt2); // different salts

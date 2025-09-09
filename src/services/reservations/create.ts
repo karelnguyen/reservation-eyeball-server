@@ -1,5 +1,5 @@
 import { MIN, CONFIG } from '../../config';
-import { generateHashedPin } from '../../core/pin';
+import { generatePin } from '../../core/pin';
 import { prisma } from '../../prisma';
 import {
   CreateOk,
@@ -47,7 +47,7 @@ export async function createReservation(input: {
         select: { id: true, scheduledAt: true },
       });
 
-      const { pin, pinHash, salt } = generateHashedPin(
+      const { pin, pinHash, salt } = generatePin(
         created.id,
         created.scheduledAt
       );

@@ -22,7 +22,7 @@ export function luhnDigit(numeric: string) {
   return checkDigit.toString();
 }
 
-export function getPin(id: bigint, scheduledAt: Date, secret: string) {
+export function createPin(id: bigint, scheduledAt: Date, secret: string) {
   const payload = `${id}|${scheduledAt.toISOString()}`;
   const digest = crypto.createHmac('sha256', secret).update(payload).digest();
   const slice = digest.subarray(0, 5).toString('hex');
@@ -37,8 +37,8 @@ export function hashPin(pin: string, salt: string) {
     .digest('hex');
 }
 
-export function generateHashedPin(id: bigint, scheduledAt: Date) {
-  const pin = getPin(id, scheduledAt, process.env.PIN_SECRET!);
+export function generatePin(id: bigint, scheduledAt: Date) {
+  const pin = createPin(id, scheduledAt, process.env.PIN_SECRET!);
   const salt = Math.random().toString(36).slice(2, 10);
   const pinHash = hashPin(pin, salt);
 
