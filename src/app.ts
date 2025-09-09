@@ -2,8 +2,10 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { globalLimiter } from './security/rateLimit';
-import { HttpError } from './utils';
 import reservations from './routes/reservations/reservations.routes';
+import swaggerUi from 'swagger-ui-express';
+import { openapi } from './openapi';
+import { HttpError } from './utils/error';
 
 export function createApp() {
   const app = express();
@@ -37,6 +39,11 @@ export function createApp() {
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.use('/api/reservations', reservations);
+
+  // app.use('/api/docs', docs);
+  // Swagger UI + raw spec
+  app.get('/openapi.json', (_req, res) => res.json(openapi));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
 
   app.use(
     (

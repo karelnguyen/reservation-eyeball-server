@@ -11,28 +11,16 @@ import {
   CreateReservationSchema,
   ConfirmPinSchema,
 } from '../../validation/reservations';
+import { getErrorStatus } from '../../utils/error';
 
 const router = Router();
-
-const ERROR_STATUS: Record<ReservationErrorCode, number> = {
-  [ReservationErrorCode.VALIDATION]: 400,
-  [ReservationErrorCode.PIN_REQUIRED]: 400,
-  [ReservationErrorCode.INVALID_PIN]: 400,
-  [ReservationErrorCode.NOT_ACTIVE_YET]: 400,
-  [ReservationErrorCode.EXPIRED]: 410,
-  [ReservationErrorCode.DB_ERROR]: 500,
-};
-
-export function getStatus(code?: ReservationErrorCode): number {
-  return (code && ERROR_STATUS[code]) || 400;
-}
 
 router.get('/', async (req, res) => {
   const sort = (req.query.sort as string) === 'asc' ? 'asc' : 'desc';
   const result = await listReservations(sort);
   if (!result.ok) {
     return res
-      .status(getStatus(result.code))
+      .status(getErrorStatus(result.code))
       .json({ ...result, error: result.message });
   }
   return res.json(result.reservations);
@@ -42,7 +30,7 @@ router.post('/', validateBody(CreateReservationSchema), async (req, res) => {
   const result = await createReservation(req.body ?? {});
   if (!result.ok) {
     return res
-      .status(getStatus(result.code))
+      .status(getErrorStatus(result.code))
       .json({ ...result, error: result.message });
   }
   return res.status(201).json(result);
@@ -56,7 +44,7 @@ router.post(
     const result = await confirmByPin(req.body?.pin);
     if (!result.ok) {
       return res
-        .status(getStatus(result.code))
+        .status(getErrorStatus(result.code))
         .json({ ...result, error: result.message });
     }
     return res.json(result);

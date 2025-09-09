@@ -1,3 +1,5 @@
+import { Reservation } from '@prisma/client';
+
 export enum ReservationErrorCode {
   VALIDATION = 'VALIDATION',
   DB_ERROR = 'DB_ERROR',
@@ -12,19 +14,7 @@ export enum ReservationStatus {
   CONFIRMED = 'confirmed',
 }
 
-export type PublicReservationRow = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phone: string; // masked e.g. "•••3456"
-  scheduledAt: Date;
-  status: string;
-  confirmedAt: Date | null;
-  pinLast4: string;
-  createdAt: Date;
-};
-
-export type ListOk = { ok: true; reservations: PublicReservationRow[] };
+export type ListOk = { ok: true; reservations: Reservation[] };
 export type ListErr = {
   ok: false;
   code: ReservationErrorCode.DB_ERROR;
